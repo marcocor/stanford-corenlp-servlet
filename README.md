@@ -9,7 +9,7 @@ A Java Servlet for Stanford CoreNLP offering the same interface as [CoreNLP web 
 
 `cd stanford-corenlp-servlet/`
 
-`mvn war:war`
+`mvn clean compile war:war`
 
 This will produce a WAR package in directory `target/`. Deploy it to your servlet container.
 
