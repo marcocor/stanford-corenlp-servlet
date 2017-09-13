@@ -8,6 +8,7 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 import javax.servlet.ServletException;
@@ -20,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.stanford.nlp.io.IOUtils;
+import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.LanguageInfo;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
@@ -134,16 +136,42 @@ public class CoreNlpPipelineServlet extends HttpServlet {
 		return cache.get(props);
 	}
 
+	private Annotation getInput(Properties props, HttpServletRequest request) throws IOException {
+		String date = props.getProperty("date");
+
+		String text;
+		switch (request.getContentType()) {
+		case "application/x-www-form-urlencoded":
+			// Find parameter with no value
+			Optional<String> textParam = request.getParameterMap().keySet().stream()
+			        .filter(k -> request.getParameter(k).isEmpty()).findFirst();
+			if (!textParam.isPresent())
+				throw new RuntimeException("Could not find input text in x-www-form-urlencoded data.");
+			text = textParam.get();
+
+			break;
+		default:
+			// Get whole request body as input;
+			text = IOUtils
+			        .slurpReader(IOUtils.encodedInputStreamReader(request.getInputStream(), request.getCharacterEncoding()));
+			break;
+		}
+
+		// Read the annotation
+		Annotation annotation = new Annotation(text);
+		// Set the date (if provided)
+		if (date != null) {
+			annotation.set(CoreAnnotations.DocDateAnnotation.class, date);
+		}
+		return annotation;
+	}
+
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		Properties props = getProperties(request);
 
 		StanfordCoreNLP pipeline = getStanfordCoreNlp(props);
 
-		String input = IOUtils.slurpInputStream(request.getInputStream(), request.getCharacterEncoding());
-
-		LOG.info(input);
-
-		Annotation annotation = new Annotation(input);
+		Annotation annotation = getInput(props, request);
 		pipeline.annotate(annotation);
 
 		PrintWriter writer = response.getWriter();
